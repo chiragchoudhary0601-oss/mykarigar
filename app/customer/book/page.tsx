@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Service = {
@@ -14,7 +14,6 @@ type Service = {
 
 export default function BookingPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [services, setServices] = useState<Service[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState("");
@@ -43,31 +42,17 @@ export default function BookingPage() {
         return;
       }
 
-      const loadedServices = data ?? [];
+      setServices(data ?? []);
 
-      setServices(loadedServices);
-
-      /*
-       * If a service ID was passed from /customer/services,
-       * select that service automatically.
-       */
-      const requestedServiceId = searchParams.get("service");
-
-      const requestedServiceExists = loadedServices.some(
-        (service) => service.id === requestedServiceId
-      );
-
-      if (requestedServiceExists && requestedServiceId) {
-        setSelectedServiceId(requestedServiceId);
-      } else if (loadedServices.length > 0) {
-        setSelectedServiceId(loadedServices[0].id);
+      if (data && data.length > 0) {
+        setSelectedServiceId(data[0].id);
       }
 
       setLoadingServices(false);
     }
 
-    void loadServices();
-  }, [searchParams]);
+    loadServices();
+  }, []);
 
   const selectedService = services.find(
     (service) => service.id === selectedServiceId
@@ -129,6 +114,7 @@ export default function BookingPage() {
     }
 
     try {
+      // Get the currently logged-in Supabase user.
       const {
         data: { user },
         error: userError,
@@ -138,11 +124,13 @@ export default function BookingPage() {
         console.error("GET USER ERROR:", userError);
       }
 
+      // User must be logged in before creating a booking.
       if (!user) {
         router.push("/login");
         return;
       }
 
+      // Create booking belonging to the authenticated customer.
       const { error: bookingError } = await supabase
         .from("bookings")
         .insert({
@@ -173,14 +161,17 @@ export default function BookingPage() {
         setSelectedServiceId(services[0].id);
       }
     } catch (err) {
-      console.error("BOOKING ERROR:", err);
+  console.error("BOOKING ERROR:", err);
 
-      setError(
-        "Something went wrong while submitting your booking. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
+  if (err && typeof err === "object" && "message" in err) {
+    const bookingMessage = String(err.message);
+    setError(`Booking failed: ${bookingMessage}`);
+  } else {
+    setError(`Booking failed: ${String(err)}`);
+  }
+} finally {
+  setLoading(false);
+}
   }
 
   if (submitted) {
