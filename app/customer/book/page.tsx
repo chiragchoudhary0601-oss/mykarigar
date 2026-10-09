@@ -114,40 +114,60 @@ export default function BookingPage() {
     }
 
     try {
-      // Get the currently logged-in Supabase user.
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+  // Get the currently logged-in Supabase user.
+const {
+  data: { user },
+  error: userError,
+} = await supabase.auth.getUser();
 
-      if (userError) {
-        console.error("GET USER ERROR:", userError);
-      }
+if (userError) {
+  console.error("GET USER ERROR:", userError);
+  throw userError;
+}
 
-      // User must be logged in before creating a booking.
-      if (!user) {
-        router.push("/login");
-        return;
-      }
+// User must be logged in before creating a booking.
+if (!user) {
+  router.push("/login");
+  return;
+}
 
-      // Create booking belonging to the authenticated customer.
-      const { error: bookingError } = await supabase
-        .from("bookings")
-        .insert({
-          customer_id: user.id,
-          service_id: selectedServiceId,
-          customer_name: name,
-          customer_phone: phone,
-          problem,
-          address,
-          preferred_time: preferredTime,
-          status: "requested",
-        });
+// Check that the authenticated user has a customer profile.
+const { data: profile, error: profileError } = await supabase
+  .from("users")
+  .select("id")
+  .eq("id", user.id)
+  .maybeSingle();
 
-      if (bookingError) {
-        console.error("BOOKING INSERT ERROR:", bookingError);
-        throw bookingError;
-      }
+if (profileError) {
+  console.error("CUSTOMER PROFILE ERROR:", profileError);
+  throw profileError;
+}
+
+if (!profile) {
+  setError(
+    "Your customer profile is missing. Please log out and sign up again, or contact support."
+  );
+  return;
+}
+
+// Create booking belonging to the authenticated customer.
+const { error: bookingError } = await supabase
+  .from("bookings")
+  .insert({
+    customer_id: profile.id,
+    service_id: selectedServiceId,
+    customer_name: name,
+    customer_phone: phone,
+    problem,
+    address,
+    preferred_time: preferredTime,
+    status: "requested",
+  });
+
+if (bookingError) {
+  console.error("BOOKING INSERT ERROR:", bookingError);
+  throw bookingError;
+}
 
       setSubmitted(true);
 
